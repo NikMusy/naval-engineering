@@ -2,6 +2,7 @@ package dev.navalengineering.ship;
 
 import dev.navalengineering.NavalEngineering;
 import dev.navalengineering.simulation.Hull;
+import dev.navalengineering.simulation.HullGeometry;
 import dev.navalengineering.simulation.Vessel;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.MathHelper;
@@ -38,9 +39,10 @@ public final class ShipContacts {
         private final Vector3d inOther = new Vector3d();
         private final Vector3d center = new Vector3d();
         private final Vector3d otherCenter = new Vector3d();
+        private final Vector3d firstPart = new Vector3d();
+        private final Vector3d secondPart = new Vector3d();
         private final Vector3d separation = new Vector3d();
         private final Vector3d normal = new Vector3d();
-        private final double[] span = new double[15];
 
         Pair() {
             for (int i = 0; i < axes.length; i++) axes[i] = new Vector3d();
@@ -60,17 +62,14 @@ public final class ShipContacts {
                     else axis.zero();
                 }
             }
-            for (int i = 0; i < axes.length; i++) {
-                Vector3d axis = axes[i];
-                span[i] = halfSpan(axis, 0) + halfSpan(axis, 3);
-            }
             Vessel.Contact best = null;
             int otherIndex = -1;
             double reach = (VOXEL_DIAMETER + 1) * .5;
             var otherHull = b.hull();
             for (int index : a.hull().exposed()) {
                 if (a.breached(index)) continue;
-                Hull.Grid cell = a.hull().blocks().get(index).position();
+                Hull.Cell aCell = a.hull().blocks().get(index);
+                Hull.Grid cell = aCell.position();
                 a.toWorld(local.set(cell.x(), cell.y(), cell.z()), center);
                 b.toLocal(center, inOther);
                 for (int x = low(inOther.x, reach); x <= high(inOther.x, reach); x++) {
@@ -81,13 +80,19 @@ public final class ShipContacts {
                             b.toWorld(local.set(x, y, z), otherCenter);
                             center.sub(otherCenter, separation);
                             if (separation.lengthSquared() > 3) continue;
-                            double depth = penetration();
-                            if (depth <= 0 || (best != null && best.depth() >= depth)) continue;
-                            // Midpoint of the support points, with a common world-space normal.
-                            var point = new Vector3d(center).lerp(otherCenter, .5)
-                                    .fma((halfSpan(normal, 3) - halfSpan(normal, 0)) * .5, normal);
-                            best = new Vessel.Contact(point, new Vector3d(normal), depth, index);
-                            otherIndex = candidate;
+                            for (HullGeometry.Box aPart : aCell.geometry().boxes()) {
+                                place(firstPart, center, aPart, 0);
+                                for (HullGeometry.Box bPart : otherHull.blocks().get(candidate).geometry().boxes()) {
+                                    place(secondPart, otherCenter, bPart, 3);
+                                    firstPart.sub(secondPart, separation);
+                                    double depth = penetration(aPart, bPart);
+                                    if (depth <= 0 || (best != null && best.depth() >= depth)) continue;
+                                    var point = new Vector3d(firstPart).lerp(secondPart, .5)
+                                            .fma((halfSpan(normal, 3, bPart) - halfSpan(normal, 0, aPart)) * .5, normal);
+                                    best = new Vessel.Contact(point, new Vector3d(normal), depth, index);
+                                    otherIndex = candidate;
+                                }
+                            }
                         }
                     }
                 }
@@ -97,12 +102,16 @@ public final class ShipContacts {
             return true;
         }
 
-        private double penetration() {
+        private void place(Vector3d result, Vector3d cell, HullGeometry.Box part, int start) {
+            result.set(cell).fma(part.x(), axes[start]).fma(part.y(), axes[start + 1]).fma(part.z(), axes[start + 2]);
+        }
+
+        private double penetration(HullGeometry.Box a, HullGeometry.Box b) {
             double depth = Double.POSITIVE_INFINITY;
             for (int i = 0; i < axes.length; i++) {
-                if (span[i] == 0) continue;
+                if (axes[i].lengthSquared() == 0) continue;
                 double distance = axes[i].dot(separation);
-                double overlap = span[i] - Math.abs(distance);
+                double overlap = halfSpan(axes[i], 0, a) + halfSpan(axes[i], 3, b) - Math.abs(distance);
                 if (overlap <= 1e-5) return 0;
                 if (overlap < depth) {
                     depth = overlap;
@@ -112,9 +121,9 @@ public final class ShipContacts {
             return depth;
         }
 
-        private double halfSpan(Vector3d axis, int start) {
-            return .5 * (Math.abs(axis.dot(axes[start])) + Math.abs(axis.dot(axes[start + 1]))
-                    + Math.abs(axis.dot(axes[start + 2])));
+        private double halfSpan(Vector3d axis, int start, HullGeometry.Box part) {
+            return part.sx() * Math.abs(axis.dot(axes[start])) + part.sy() * Math.abs(axis.dot(axes[start + 1]))
+                    + part.sz() * Math.abs(axis.dot(axes[start + 2]));
         }
 
         private static int low(double value, double hood) {
@@ -126,4 +135,3 @@ public final class ShipContacts {
         }
     }
 }
-

@@ -8,6 +8,10 @@
     "naval_engineering:pump",
     "naval_engineering:navy_panel",
     "naval_engineering:ivory_panel",
-    "naval_engineering:red_primer"
+    "naval_engineering:red_primer",
+    "naval_engineering:bow_plate",
+    "naval_engineering:stem",
+    "naval_engineering:chine",
+    "naval_engineering:shoulder"
   ]
 }

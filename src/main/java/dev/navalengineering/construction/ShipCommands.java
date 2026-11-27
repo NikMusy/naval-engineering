@@ -178,11 +178,14 @@ public final class ShipCommands {
         checkCapacity(world, position, design.hull().radius());
         for (Hull.Cell hullCell : design.hull().blocks()) {
             Hull.Grid p = hullCell.position();
-            Box voxel = new Box(x + p.x() - .49999, y + p.y() - .49999, z + p.z() - .49999,
-                    x + p.x() + .49999, y + p.y() + .49999, z + p.z() + .49999);
             BlockPos cell = BlockPos.ofFloored(x + p.x(), y + p.y(), z + p.z());
-            if (!inLoadedWorld(world, cell) || world.getBlockCollisions(null, voxel).iterator().hasNext()) {
-                throw ERROR.create(Text.translatable("naval.command.clearance"));
+            if (!inLoadedWorld(world, cell)) throw ERROR.create(Text.translatable("naval.command.clearance"));
+            for (var part : hullCell.geometry().boxes()) {
+                Box voxel = new Box(x + p.x() + part.x0(), y + p.y() + part.y0(), z + p.z() + part.z0(),
+                        x + p.x() + part.x1(), y + p.y() + part.y1(), z + p.z() + part.z1()).contract(.00001);
+                if (world.getBlockCollisions(null, voxel).iterator().hasNext()) {
+                    throw ERROR.create(Text.translatable("naval.command.clearance"));
+                }
             }
         }
         var ship = ShipEntity.create(world, design, position);
@@ -201,7 +204,7 @@ public final class ShipCommands {
                 >= MAX_SHIPS_PER_AREA) {
             throw ERROR.create(Text.translatable("naval.command.capacity"));
         }
-        if (!world.getEntitiesByClass(ShipEntity.class, new Box(at, at).expand(85), ship -> {
+        if (!world.getEntitiesByClass(ShipEntity.class, new Box(at, at).expand(radius + Math.sqrt(3) * Hull.MAX_SPAN), ship -> {
             if (ship.blueprint() == null) return false;
             double reach = radius + ship.blueprint().hull().radius() + .5;
             return ship.squaredDistanceTo(at) < reach * reach;
@@ -227,8 +230,8 @@ public final class ShipCommands {
             if (!inLoadedWorld(world, pos)) throw ERROR.create(Text.translatable("naval.command.unloaded"));
             BlockState state = world.getBlockState(pos);
             if (Blueprint.material(state) == null) continue;
-            if (state.hasBlockEntity() || state != state.getBlock().getDefaultState()
-                    || !state.isFullCube(world, pos)) {
+            if (state.hasBlockEntity() || (!(state.getBlock() instanceof ProfileBlock)
+                    && (state != state.getBlock().getDefaultState() || !state.isFullCube(world, pos)))) {
                 throw ERROR.create(Text.translatable("naval.command.unsupported"));
             }
             if (state.isOf(NavalEngineering.HELM) && ++helms > 1) {
@@ -264,4 +267,3 @@ public final class ShipCommands {
 
     private record Site(Blueprint blueprint, Map<BlockPos, BlockState> blocks) {}
 }
-

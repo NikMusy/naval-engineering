@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": {
+    "item": "naval_engineering:red_primer"
+  },
+  "result": {
+    "id": "naval_engineering:chine",
+    "count": 2
+  }
+}

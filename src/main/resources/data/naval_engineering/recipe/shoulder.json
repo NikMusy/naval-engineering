@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:stonecutting",
+  "ingredient": {
+    "item": "naval_engineering:ivory_panel"
+  },
+  "result": {
+    "id": "naval_engineering:shoulder",
+    "count": 2
+  }
+}

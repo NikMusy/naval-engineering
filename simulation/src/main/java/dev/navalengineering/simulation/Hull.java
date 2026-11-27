@@ -11,8 +11,8 @@ import java.util.List;
 import java.util.Map;
 
 public final class Hull {
-    public static final int MAX_BLOCKS = 1280;
-    public static final int MAX_SPAN = 29;
+    public static final int MAX_BLOCKS = 1600;
+    public static final int MAX_SPAN = 35;
     public static final int MAX_INTERIOR = 2048;
     public static final int OUTSIDE = -1;
     private static final int[][] DIRECTIONS = {
@@ -57,7 +57,10 @@ public final class Hull {
         }
     }
 
-    public record Cell(Grid position, Material material) {}
+    public record Cell(Grid position, Material material, HullGeometry geometry) {
+        public Cell(Grid position, Material material) { this(position, material, HullGeometry.FULL); }
+        public double mass() { return material.mass() * geometry.volume(); }
+    }
 
     public record Boundary(int blockIndex, List<Integer> spaces) {}
 
@@ -140,7 +143,7 @@ public final class Hull {
     }
 
     public double dryMass() {
-        return blocks.stream().mapToDouble(cell -> cell.material.mass()).sum();
+        return blocks.stream().mapToDouble(Cell::mass).sum();
     }
 
     public List<Grid> displacementCells() {
@@ -207,4 +210,3 @@ public final class Hull {
         }
     }
 }
-

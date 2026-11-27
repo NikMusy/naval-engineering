@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "side": "naval_engineering:block/locker",
+    "bottom": "naval_engineering:block/locker",
+    "top": "naval_engineering:block/locker_top"
+  }
+}

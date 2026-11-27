@@ -7,6 +7,7 @@ import dev.navalengineering.network.CrewInput;
 import dev.navalengineering.ship.ShipEntity;
 import dev.navalengineering.simulation.DeckMotion;
 import dev.navalengineering.simulation.Hull;
+import dev.navalengineering.simulation.HullGeometry;
 import dev.navalengineering.simulation.Hydrostatics;
 import net.fabricmc.fabric.api.gametest.v1.FabricGameTest;
 import net.minecraft.block.Block;
@@ -16,6 +17,7 @@ import net.minecraft.test.GameTest;
 import net.minecraft.test.TestContext;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
 
 import java.util.Map;
@@ -127,6 +129,51 @@ public final class VesselGameTests implements FabricGameTest {
         test.complete();
     }
 
+    @GameTest(templateName = FabricGameTest.EMPTY_STRUCTURE, batchId = "naval_profiles", tickLimit = 15)
+    public void launchKeepsPlateOrientationAndBothCabinsAreReachable(TestContext test) {
+        var world = test.getWorld();
+        for (String name : new String[]{"bow_plate", "stem", "chine", "shoulder", "berth", "locker"}) {
+            test.assertTrue(world.getServer().getRecipeManager().get(NavalEngineering.id(name)).isPresent(),
+                    "Missing registered piece recipe: " + name);
+        }
+        BlockPos helm = test.getAbsolutePos(new BlockPos(0, 5, 0));
+        var plate = NavalEngineering.BOW_PLATE.facing(Direction.WEST);
+        world.setBlockState(helm, NavalEngineering.HELM.getDefaultState());
+        world.setBlockState(helm.east(), plate);
+        command(test, "/naval launch", helm);
+        ShipEntity ship = find(test, helm);
+        var decoded = Blueprint.decode(ship.blueprint().encode());
+        int plateIndex = decoded.hull().indexOf(new Hull.Grid(1, 0, 0));
+        test.assertTrue(decoded.states().get(plateIndex) == plate, "The palette lost the plate's facing");
+        test.assertTrue(decoded.hull().blocks().get(plateIndex).geometry() == HullGeometry.of(HullGeometry.Profile.BOW, 3),
+                "The physical profile lost its facing");
+        var legacy = Blueprint.create(Map.of(new Hull.Grid(0, 0, 0), NavalEngineering.HELM.getDefaultState())).encode();
+        legacy.putInt("Version", 1);
+        test.assertTrue(Blueprint.decode(legacy).hull().blocks().getFirst().geometry() == HullGeometry.FULL,
+                "Legacy unshaped hull could not be decoded");
+        ship.discard();
+
+        for (int sign : new int[]{-1, 1}) {
+            var yacht = ShipEntity.create(world, VesselDesigns.MERIDIAN.build(), Vec3d.ofCenter(helm));
+            var crew = yacht.deckSpace();
+            var start = DeckMotion.State.standing(0, -.5, 1.15);
+            var aisle = walk(start, crew, new DeckMotion.Input(-sign, 0, 0, false, false, false), 5);
+            aisle = walk(aisle, crew, new DeckMotion.Input(0, -1, 0, false, false, false), 10);
+            var passage = walk(aisle, crew, new DeckMotion.Input(sign, 0, 0, false, false, false), 5);
+            passage = walk(passage, crew, new DeckMotion.Input(0, -1, 0, false, false, false), 14);
+            var cabin = walk(passage, crew, new DeckMotion.Input(-sign, 0, 0, false, false, false), 11);
+            test.assertTrue(cabin.x() * sign > 1.9 && cabin.z() < -3.75 && cabin.grounded(),
+                    "Cabin access was obstructed: " + cabin);
+        }
+        test.complete();
+    }
+
+    private static DeckMotion.State walk(DeckMotion.State state, DeckMotion.Space room,
+                                         DeckMotion.Input action, int ticks) {
+        for (int i = 0; i < ticks; i++) state = DeckMotion.tick(room, state, action);
+        return state;
+    }
+
     @GameTest(templateName = FabricGameTest.EMPTY_STRUCTURE, batchId = "naval_contacts", tickLimit = 40)
     public void twoHullsExchangeMomentumOnContact(TestContext test) {
         Vec3d start = Vec3d.ofCenter(test.getAbsolutePos(new BlockPos(0, 12, 0)));
@@ -160,4 +207,3 @@ public final class VesselGameTests implements FabricGameTest {
                 .stream().findFirst().orElseThrow(() -> new IllegalStateException("Launch command did not create a ship: " + pos));
     }
 }
-

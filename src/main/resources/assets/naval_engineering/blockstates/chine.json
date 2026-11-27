@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "naval_engineering:block/chine"
+    },
+    "facing=east": {
+      "model": "naval_engineering:block/chine"
+    },
+    "facing=south": {
+      "model": "naval_engineering:block/chine"
+    },
+    "facing=west": {
+      "model": "naval_engineering:block/chine"
+    }
+  }
+}

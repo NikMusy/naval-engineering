@@ -53,5 +53,11 @@
   "naval.hud.boarded": "На борту · Shift замедляет ходьбу у края",
   "block.naval_engineering.navy_panel": "Тёмно-синяя судовая панель",
   "block.naval_engineering.ivory_panel": "Светлая судовая панель",
-  "block.naval_engineering.red_primer": "Красная грунтованная обшивка"
+  "block.naval_engineering.red_primer": "Красная грунтованная обшивка",
+  "block.naval_engineering.bow_plate": "Диагональная носовая обшивка",
+  "block.naval_engineering.stem": "Острый форштевень",
+  "block.naval_engineering.chine": "Наклонная скуловая обшивка",
+  "block.naval_engineering.shoulder": "Скошенная панель надстройки",
+  "block.naval_engineering.berth": "Судовая койка",
+  "block.naval_engineering.locker": "Каютный шкаф"
 }

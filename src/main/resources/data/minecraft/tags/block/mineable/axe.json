@@ -1,6 +1,8 @@
 {
   "replace": false,
   "values": [
-    "naval_engineering:helm"
+    "naval_engineering:helm",
+    "naval_engineering:berth",
+    "naval_engineering:locker"
   ]
 }

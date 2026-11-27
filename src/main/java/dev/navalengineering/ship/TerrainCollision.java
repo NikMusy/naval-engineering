@@ -1,6 +1,7 @@
 package dev.navalengineering.ship;
 
 import dev.navalengineering.simulation.Hull;
+import dev.navalengineering.simulation.HullGeometry;
 import dev.navalengineering.simulation.Vessel;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.server.world.ServerWorld;
@@ -21,6 +22,7 @@ final class TerrainCollision implements Vessel.Collision {
     private final BlockPos.Mutable probe = new BlockPos.Mutable();
     private final Vector3d local = new Vector3d();
     private final Vector3d center = new Vector3d();
+    private final Vector3d partCenter = new Vector3d();
     private final Vector3d normal = new Vector3d();
     private final Vector3d separation = new Vector3d();
     private final Vector3d[] axes = new Vector3d[15];
@@ -55,7 +57,8 @@ final class TerrainCollision implements Vessel.Collision {
         Vessel.Contact best = null;
         for (int index : vessel.hull().exposed()) {
             if (vessel.breached(index)) continue;
-            Hull.Grid voxel = vessel.hull().blocks().get(index).position();
+            Hull.Cell cell = vessel.hull().blocks().get(index);
+            Hull.Grid voxel = cell.position();
             vessel.toWorld(local.set(voxel.x(), voxel.y(), voxel.z()), center);
             for (int x = MathHelper.floor(center.x - dx); x <= MathHelper.floor(center.x + dx); x++) {
                 for (int z = MathHelper.floor(center.z - dz); z <= MathHelper.floor(center.z + dz); z++) {
@@ -63,10 +66,13 @@ final class TerrainCollision implements Vessel.Collision {
                         long key = BlockPos.asLong(x, y, z);
                         List<Box> boxes = solids.computeIfAbsent(key, this::boxes);
                         for (Box box : boxes) {
-                            double depth = penetration(box, x, y, z);
-                            if (depth <= 0 || (best != null && depth <= best.depth())) continue;
-                            Vector3d point = new Vector3d(center).fma(-halfExtent(normal), normal);
-                            best = new Vessel.Contact(point, new Vector3d(normal), depth, index);
+                            for (HullGeometry.Box part : cell.geometry().boxes()) {
+                                partCenter.set(center).fma(part.x(), axes[3]).fma(part.y(), axes[4]).fma(part.z(), axes[5]);
+                                double depth = penetration(box, x, y, z, part);
+                                if (depth <= 0 || (best != null && depth <= best.depth())) continue;
+                                Vector3d point = new Vector3d(partCenter).fma(-halfExtent(normal, part), normal);
+                                best = new Vessel.Contact(point, new Vector3d(normal), depth, index);
+                            }
                         }
                     }
                 }
@@ -85,17 +91,17 @@ final class TerrainCollision implements Vessel.Collision {
         return world.getBlockState(probe).getCollisionShape(world, probe).getBoundingBoxes();
     }
 
-    private double penetration(Box box, int x, int y, int z) {
+    private double penetration(Box box, int x, int y, int z, HullGeometry.Box part) {
         double rx = (box.maxX - box.minX) * .5;
         double ry = (box.maxY - box.minY) * .5;
         double rz = (box.maxZ - box.minZ) * .5;
-        separation.set(center.x - (x + box.minX + rx), center.y - (y + box.minY + ry),
-                center.z - (z + box.minZ + rz));
+        separation.set(partCenter.x - (x + box.minX + rx), partCenter.y - (y + box.minY + ry),
+                partCenter.z - (z + box.minZ + rz));
         double depth = Double.POSITIVE_INFINITY;
         for (Vector3d axis : axes) {
             if (axis.lengthSquared() == 0) continue;
             double projection = separation.dot(axis);
-            double overlap = halfExtent(axis) + rx * Math.abs(axis.x) + ry * Math.abs(axis.y)
+            double overlap = halfExtent(axis, part) + rx * Math.abs(axis.x) + ry * Math.abs(axis.y)
                     + rz * Math.abs(axis.z) - Math.abs(projection);
             if (overlap <= 1e-5) return 0;
             if (overlap < depth) {
@@ -107,7 +113,11 @@ final class TerrainCollision implements Vessel.Collision {
     }
 
     private double halfExtent(Vector3d axis) {
-        return .5 * (Math.abs(axis.dot(axes[3])) + Math.abs(axis.dot(axes[4])) + Math.abs(axis.dot(axes[5])));
+        return halfExtent(axis, HullGeometry.FULL.boxes().getFirst());
+    }
+
+    private double halfExtent(Vector3d axis, HullGeometry.Box part) {
+        return part.sx() * Math.abs(axis.dot(axes[3])) + part.sy() * Math.abs(axis.dot(axes[4]))
+                + part.sz() * Math.abs(axis.dot(axes[5]));
     }
 }
-

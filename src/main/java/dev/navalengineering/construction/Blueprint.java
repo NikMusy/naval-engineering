@@ -1,6 +1,7 @@
 package dev.navalengineering.construction;
 
 import dev.navalengineering.simulation.Hull;
+import dev.navalengineering.simulation.HullGeometry;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -11,6 +12,8 @@ import net.minecraft.nbt.NbtString;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.tag.BlockTags;
 import net.minecraft.util.Identifier;
+import net.minecraft.state.property.Properties;
+import net.minecraft.util.math.Direction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,20 +42,23 @@ public record Blueprint(Hull hull, List<BlockState> states) {
         List<Hull.Cell> cells = Hull.sorted(grid.entrySet().stream().map(entry -> {
             Hull.Material material = material(entry.getValue());
             if (material == null) throw new IllegalArgumentException("Unsupported block in blueprint");
-            return new Hull.Cell(entry.getKey(), material);
+            return new Hull.Cell(entry.getKey(), material, geometry(entry.getValue()));
         }).toList());
         return new Blueprint(new Hull(cells), cells.stream().map(cell -> grid.get(cell.position())).toList());
     }
 
     public NbtCompound encode() {
         var palette = new NbtList();
-        var ids = new HashMap<Block, Integer>();
+        var ids = new HashMap<BlockState, Integer>();
         int[] data = new int[states.size() * 4];
         for (int i = 0; i < states.size(); i++) {
             Hull.Grid p = hull.blocks().get(i).position();
-            Block block = states.get(i).getBlock();
-            int paletteId = ids.computeIfAbsent(block, key -> {
-                palette.add(NbtString.of(Registries.BLOCK.getId(key).toString()));
+            int paletteId = ids.computeIfAbsent(states.get(i), state -> {
+                String encoded = Registries.BLOCK.getId(state.getBlock()).toString();
+                if (state.getBlock() instanceof ProfileBlock) {
+                    encoded += "#" + state.get(Properties.HORIZONTAL_FACING).getName();
+                }
+                palette.add(NbtString.of(encoded));
                 return palette.size() - 1;
             });
             data[4 * i] = p.x();
@@ -61,7 +67,7 @@ public record Blueprint(Hull hull, List<BlockState> states) {
             data[4 * i + 3] = paletteId;
         }
         var tag = new NbtCompound();
-        tag.putInt("Version", 1);
+        tag.putInt("Version", 2);
         tag.put("Palette", palette);
         tag.putIntArray("Cells", data);
         return tag;
@@ -70,15 +76,26 @@ public record Blueprint(Hull hull, List<BlockState> states) {
     public static Blueprint decode(NbtCompound tag) {
         int[] data = tag.getIntArray("Cells");
         var palette = tag.getList("Palette", NbtElement.STRING_TYPE);
-        if (tag.getInt("Version") != 1 || data.length == 0 || data.length % 4 != 0
+        int version = tag.getInt("Version");
+        if ((version != 1 && version != 2) || data.length == 0 || data.length % 4 != 0
                 || data.length > Hull.MAX_BLOCKS * 4 || palette.size() > Hull.MAX_BLOCKS) {
             throw new IllegalArgumentException("Invalid hull data");
         }
         var states = new ArrayList<BlockState>();
         for (int i = 0; i < palette.size(); i++) {
-            Identifier id = Identifier.tryParse(palette.getString(i));
+            String[] entry = palette.getString(i).split("#", -1);
+            Identifier id = Identifier.tryParse(entry[0]);
             if (id == null || !Registries.BLOCK.containsId(id)) throw new IllegalArgumentException("Unknown hull block");
-            states.add(Registries.BLOCK.get(id).getDefaultState());
+            Block block = Registries.BLOCK.get(id);
+            if (entry.length == 1) {
+                states.add(block.getDefaultState());
+            } else if (version == 2 && entry.length == 2 && block instanceof ProfileBlock panel) {
+                Direction facing = Direction.byName(entry[1]);
+                if (facing == null || !facing.getAxis().isHorizontal()) throw new IllegalArgumentException("Invalid plate facing");
+                states.add(panel.facing(facing));
+            } else {
+                throw new IllegalArgumentException("Unexpected palette properties");
+            }
         }
         var cells = new ArrayList<Hull.Cell>();
         var ordered = new ArrayList<BlockState>();
@@ -88,11 +105,14 @@ public record Blueprint(Hull hull, List<BlockState> states) {
             BlockState state = states.get(data[i + 3]);
             Hull.Material material = material(state);
             if (material == null) throw new IllegalArgumentException("Invalid hull material");
-            cells.add(new Hull.Cell(p, material));
+            cells.add(new Hull.Cell(p, material, geometry(state)));
             ordered.add(state);
         }
         return new Blueprint(new Hull(cells), ordered);
     }
 
-}
+    private static HullGeometry geometry(BlockState state) {
+        return state.getBlock() instanceof ProfileBlock panel ? panel.geometry(state) : HullGeometry.FULL;
+    }
 
+}

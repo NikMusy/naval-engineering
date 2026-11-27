@@ -2,6 +2,6 @@
   "required": true,
   "package": "dev.navalengineering.client.mixin",
   "compatibilityLevel": "JAVA_21",
-  "client": ["DeckPlayerRendererMixin", "DeckInteractionMixin", "DeckWeatherMixin"],
+  "client": ["DeckPlayerRendererMixin", "DeckInteractionMixin", "DeckWeatherMixin", "DeckCameraMixin"],
   "injectors": { "defaultRequire": 1 }
 }

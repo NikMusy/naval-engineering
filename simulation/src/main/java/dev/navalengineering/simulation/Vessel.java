@@ -37,6 +37,7 @@ public final class Vessel {
     private final Vector3d support = new Vector3d();
     private final Vector3d buoyancyPoint = new Vector3d();
     private final Vector3d sliceCenter = new Vector3d();
+    private final Vector3d vertical = new Vector3d();
     private final double[] spans = new double[3];
     private final int[] spanAxes = new int[3];
     private final double[] spanSigns = new double[3];
@@ -153,11 +154,14 @@ public final class Vessel {
             displacement.get(i).vector(local);
             toWorld(local, point);
             ocean.sample(point.x, point.y, point.z, water);
-            double wet = submergedFraction(water.height - point.y);
+            HullGeometry geometry = i < outside.length ? hull.blocks().get(i).geometry() : HullGeometry.FULL;
+            double elevation = water.height - point.y;
+            double wet = geometry == HullGeometry.FULL ? submergedFraction(elevation)
+                    : geometry.submerged(vertical, elevation, sliceCenter);
             if (wet > 0) {
                 displaced += wet;
                 force.set(0, wet * Ocean.WATER_DENSITY * Ocean.GRAVITY, 0);
-                submergedCenter(water.height - point.y, wet, sliceCenter);
+                if (geometry == HullGeometry.FULL) submergedCenter(elevation, wet, sliceCenter);
                 forceAt(force, buoyancyPoint.set(local).add(sliceCenter));
             }
 
@@ -172,9 +176,9 @@ public final class Vessel {
                 rotation.transform(force);
                 forceAt(force, local);
             }
-            if (wet < 1) {
+            if (wet < geometry.volume()) {
                 double relativeWind = wind - velocity.x;
-                force.set(.21 * (1 - wet) * relativeWind * Math.abs(relativeWind), 0, 0);
+                force.set(.21 * (geometry.volume() - wet) * relativeWind * Math.abs(relativeWind), 0, 0);
                 forceAt(force, local);
             }
         }
@@ -296,9 +300,7 @@ public final class Vessel {
         var moments = new MassProperties();
         for (int i = 0; i < hull.blocks().size(); i++) {
             if (breached(i)) continue;
-            Hull.Cell cell = hull.blocks().get(i);
-            Hull.Grid p = cell.position();
-            moments.add(cell.material().mass(), p.x(), p.y(), p.z(), 1);
+            moments.add(hull.blocks().get(i));
         }
         flooding.addMass(this, moments);
         mass = moments.finish(center, inertia);
@@ -308,12 +310,12 @@ public final class Vessel {
     }
 
     private void updateSpans() {
-        rotation.transformInverse(local.set(0, 1, 0));
+        rotation.transformInverse(vertical.set(0, 1, 0));
         spanCount = 0;
         halfHeight = 0;
-        addSpan(local.x, 0);
-        addSpan(local.y, 1);
-        addSpan(local.z, 2);
+        addSpan(vertical.x, 0);
+        addSpan(vertical.y, 1);
+        addSpan(vertical.z, 2);
     }
 
     private void addSpan(double projectedSide, int axis) {
@@ -393,4 +395,3 @@ public final class Vessel {
         Contact find(Vessel vessel);
     }
 }
-

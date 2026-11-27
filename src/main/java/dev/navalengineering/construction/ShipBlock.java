@@ -3,7 +3,7 @@ package dev.navalengineering.construction;
 import dev.navalengineering.simulation.Hull;
 import net.minecraft.block.Block;
 
-public final class ShipBlock extends Block {
+public class ShipBlock extends Block {
     private final Hull.Material material;
 
     public ShipBlock(Hull.Material material, Settings settings) {
@@ -15,4 +15,3 @@ public final class ShipBlock extends Block {
         return material;
     }
 }
-

@@ -53,5 +53,11 @@
   "naval.hud.boarded": "Aboard · Sneak to slow down near an edge",
   "block.naval_engineering.navy_panel": "Midnight Marine Panel",
   "block.naval_engineering.ivory_panel": "Ivory Marine Panel",
-  "block.naval_engineering.red_primer": "Red Primer Plating"
+  "block.naval_engineering.red_primer": "Red Primer Plating",
+  "block.naval_engineering.bow_plate": "Diagonal Bow Plate",
+  "block.naval_engineering.stem": "Raked Stem",
+  "block.naval_engineering.chine": "Chine Plate",
+  "block.naval_engineering.shoulder": "Superstructure Bevel",
+  "block.naval_engineering.berth": "Cabin Berth",
+  "block.naval_engineering.locker": "Cabin Locker"
 }

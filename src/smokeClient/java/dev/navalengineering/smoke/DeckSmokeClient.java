@@ -5,6 +5,7 @@ import dev.navalengineering.simulation.DeckMotion;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
@@ -18,10 +19,12 @@ import java.nio.file.Path;
 import java.util.Locale;
 
 public final class DeckSmokeClient implements ClientModInitializer {
-    private boolean connected, sawShip, captured, advanced, observedBelow, observedBridge, releaseIssued, afterHelm;
+    private boolean connected, sawShip, captured, advanced, observedBelow, observedBridge, observedCabin, releaseIssued, afterHelm;
     private int ticks, visible, aboard, throttleTicks, phase, phaseTicks, samples;
     private double maxFrameError, maxLocalLead, maxHorizontalLead, settledError;
+    private int settledSamples;
     private String name;
+    private boolean cabinShotQueued, cabinShot;
 
     @Override
     public void onInitializeClient() {
@@ -35,6 +38,7 @@ public final class DeckSmokeClient implements ClientModInitializer {
             if (connected) report(client);
         });
         ClientTickEvents.END_CLIENT_TICK.register(this::tick);
+        WorldRenderEvents.END.register(context -> captureCabin(MinecraftClient.getInstance()));
     }
 
     private void tick(MinecraftClient client) {
@@ -142,6 +146,23 @@ public final class DeckSmokeClient implements ClientModInitializer {
                 if (state.y() > -.65 && state.z() < 2.48) next();
                 else aimAt(client, ship, state, 0, 2.15);
             }
+            case 8 -> waypoint(client, ship, state, -1.02, 2.15);
+            case 9 -> waypoint(client, ship, state, -1.02, -1.02);
+            case 10 -> waypoint(client, ship, state, 0, -1.02);
+            case 11 -> waypoint(client, ship, state, 0, -4.01);
+            case 12 -> waypoint(client, ship, state, 2.19, -4.01);
+            case 13 -> {
+                idle(client);
+                client.options.hudHidden = true;
+                client.getToastManager().clear();
+                client.player.setYaw(-159 + ship.deckYaw());
+                client.player.setPitch(13);
+                if (phaseTicks == 9) cabinShotQueued = true;
+                if (phaseTicks > 16) {
+                    client.options.hudHidden = false;
+                    next();
+                }
+            }
             default -> {
                 advanced = true;
                 idle(client);
@@ -153,11 +174,33 @@ public final class DeckSmokeClient implements ClientModInitializer {
 
     private void next() { phase++; phaseTicks = 0; }
 
+    private void waypoint(MinecraftClient client, ShipEntity ship, DeckMotion.State state, double x, double z) {
+        if (Math.hypot(state.x() - x, state.z() - z) < .15) {
+            idle(client);
+            next();
+        } else {
+            aimAt(client, ship, state, x, z);
+        }
+    }
+
     private static void idle(MinecraftClient client) { client.options.forwardKey.setPressed(false); }
 
     private static void screenshot(MinecraftClient client, String name) {
         ScreenshotRecorder.saveScreenshot(client.runDirectory, name, client.getFramebuffer(),
                 message -> System.out.println("DECK_SMOKE_SCREENSHOT " + message.getString()));
+    }
+
+    private void captureCabin(MinecraftClient client) {
+        if (!cabinShotQueued || client.player == null || !(client.player.getVehicle() instanceof ShipEntity ship)) return;
+        var camera = client.gameRenderer.getCamera();
+        var eye = ship.crewEyePosition(client.player.getId(), camera.getLastTickDelta(),
+                client.player.getStandingEyeHeight());
+        if (eye == null || camera.getPos().distanceTo(eye) > .02) {
+            throw new IllegalStateException("First-person camera missed the deck frame");
+        }
+        cabinShotQueued = false;
+        cabinShot = true;
+        screenshot(client, "cabin.png");
     }
 
     private static void aimAt(MinecraftClient client, ShipEntity ship, DeckMotion.State at, double x, double z) {
@@ -178,12 +221,16 @@ public final class DeckSmokeClient implements ClientModInitializer {
                     double error = Math.sqrt(wire.distanceSquared(state));
                     maxLocalLead = Math.max(maxLocalLead, error);
                     maxHorizontalLead = Math.max(maxHorizontalLead, Math.hypot(wire.x() - state.x(), wire.z() - state.z()));
-                    if (phase == 8 && phaseTicks > 16) settledError = Math.max(settledError, error);
+                    if (phase >= 14) {
+                        settledError = error;
+                        settledSamples = error < .03 ? settledSamples + 1 : 0;
+                    }
                 }
             }
             if ("DeckWalker".equals(rider.getName().getString())) {
                 observedBelow |= state.y() < -4.35 && state.z() > 8.4;
                 observedBridge |= state.y() > -.55 && state.z() < 2.8;
+                observedCabin |= state.y() > -.55 && state.x() > 1.85 && state.z() < -3.65 && state.z() > -4.35;
             }
             samples++;
         }
@@ -191,15 +238,15 @@ public final class DeckSmokeClient implements ClientModInitializer {
 
     private void report(MinecraftClient client) {
         connected = false;
-        boolean ok = samples > 225 && observedBelow && observedBridge && maxFrameError < .08
+        boolean ok = samples > 225 && observedBelow && observedBridge && observedCabin && maxFrameError < .08
                 && maxHorizontalLead < .83 && maxLocalLead < 1.25 && settledError < .03
-                && (name.equals("DeckPilot") ? throttleTicks > 150 && afterHelm : advanced);
+                && (name.equals("DeckPilot") ? throttleTicks > 150 && afterHelm : advanced && cabinShot && settledSamples >= 8);
         String result = String.format(Locale.ROOT,
-                "%s client=%s samples=%d seenHull=%s screenshot=%s seenBelow=%s seenBridge=%s " +
+                "%s client=%s samples=%d seenHull=%s screenshot=%s seenBelow=%s seenBridge=%s seenCabin=%s " +
                         "throttleTicks=%d walkingRoute=%d releasedAndWalked=%s maxFrameError=%.6f_m " +
-                        "maxPredictionLead=%.4f_m horizontalLead=%.4f_m settledError=%.6f_m",
-                ok ? "PASS" : "FAIL", name, samples, sawShip, captured, observedBelow, observedBridge,
-                throttleTicks, phase, afterHelm, maxFrameError, maxLocalLead, maxHorizontalLead, settledError);
+                        "maxPredictionLead=%.4f_m horizontalLead=%.4f_m settledError=%.6f_m settledSamples=%d",
+                ok ? "PASS" : "FAIL", name, samples, sawShip, captured, observedBelow, observedBridge, observedCabin,
+                throttleTicks, phase, afterHelm, maxFrameError, maxLocalLead, maxHorizontalLead, settledError, settledSamples);
         System.out.println("DECK_SMOKE_CLIENT " + result);
         try {
             Files.writeString(client.runDirectory.toPath().resolve("deck-result.txt"), result + System.lineSeparator());

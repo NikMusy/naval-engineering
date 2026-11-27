@@ -16,6 +16,8 @@ PALETTE = {
     "navy_panel": ((36, 53, 66), "#405868", "#8a989c"),
     "ivory_panel": ((194, 202, 198), "#d7ddda", "#889a9e"),
     "red_primer": ((112, 47, 48), "#975755", "#b18877"),
+    "berth": ((58, 76, 83), "#879b9b", "#d0d0bd"),
+    "locker": ((69, 89, 88), "#879f97", "#c3ab79"),
 }
 
 
@@ -85,6 +87,19 @@ def tile(name, top):
         draw.ellipse((3, 3, 12, 12), fill="#1f303e", outline=frame)
         draw.line((3, 9, 7, 9, 7, 6, 12, 6), fill=accent, width=2)
         draw.point((10, 9), fill=accent)
+    elif name == "berth":
+        if top:
+            draw.rectangle((2, 2, 13, 13), fill="#47666f", outline="#758e95")
+            draw.rounded_rectangle((3, 3, 12, 6), radius=1, fill="#ded8be")
+            draw.line((3, 10, 12, 10), fill="#87ada9")
+        else:
+            draw.rectangle((2, 9, 13, 12), fill="#243844", outline=frame)
+            draw.line((3, 10, 12, 10), fill=accent)
+    elif name == "locker":
+        draw.rectangle((3, 3, 12, 13), outline=frame)
+        for y in range(4, 8):
+            draw.line((5, y, 10, y), fill="#384c50" if y % 2 == 0 else frame)
+        draw.line((10, 9, 10, 11), fill=accent)
     return image
 
 
@@ -106,4 +121,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

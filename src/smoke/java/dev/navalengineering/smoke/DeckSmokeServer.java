@@ -19,7 +19,7 @@ public final class DeckSmokeServer implements DedicatedServerModInitializer {
     private int tick = -1;
     private ShipEntity meridian;
     private ShipEntity squall;
-    private boolean landed, belowDeck, returned, insideBridge, atWall, outsideBridge, reentered, hadPilot, pilotWalked;
+    private boolean landed, belowDeck, returned, insideBridge, atWall, outsideBridge, reentered, hadPilot, pilotWalked, cabin;
     private double maxOnDeckError, speedWhenBelow, peakSpeed, maxTurn;
     private int wallTicks, samples;
 
@@ -54,8 +54,8 @@ public final class DeckSmokeServer implements DedicatedServerModInitializer {
             world.setWeather(12000, 0, false, false);
             meridian = demo(server, VesselDesigns.MERIDIAN, 0);
             squall = demo(server, VesselDesigns.SQUALL, -40);
-            view(pilot, meridian, new Vec3d(16, 8, -15));
-            view(walker, squall, new Vec3d(12, 7, -10));
+            view(pilot, meridian, new Vec3d(16, 9, -19));
+            view(walker, squall, new Vec3d(13, 7.5, -14));
         }
         if (tick == 120) {
             Vec3d bridge = meridian.worldFeet(DeckMotion.State.standing(-.8, -.5, 1.2));
@@ -101,11 +101,12 @@ public final class DeckSmokeServer implements DedicatedServerModInitializer {
             }
             if (atWall && w.y() < -1.3 && w.z() > 3.8) outsideBridge = true;
             if (outsideBridge && w.y() > -.6 && w.z() < 2.7) reentered = true;
+            if (reentered && w.x() > 1.85 && w.z() < -3.65 && w.z() > -4.35 && w.grounded()) cabin = true;
         }
         if (tick % 40 == 0) System.out.printf(Locale.ROOT,
                 "DECK_SMOKE tick=%d pilot=%s walking=%s speed=%.3f heading=%.2f below=%s returned=%s wall=%s reentered=%s%n",
                 tick, meridian.isPilot(pilot.getId()), w, speed, heading, belowDeck, returned, atWall, reentered);
-        if (tick >= 365 && landed && belowDeck && returned && insideBridge && atWall && reentered && pilotWalked
+        if (tick >= 450 && landed && belowDeck && returned && insideBridge && atWall && reentered && pilotWalked && cabin
                 && peakSpeed > .55 && speedWhenBelow > .15 && maxTurn > 5 && maxOnDeckError < .03 && samples > 300) {
             report(server, summary("PASS"));
         } else if (tick >= 640) {
@@ -115,17 +116,17 @@ public final class DeckSmokeServer implements DedicatedServerModInitializer {
 
     private String summary(String status) {
         return String.format(Locale.ROOT,
-                "%s landing=%s stairsDown=%s stairsUp=%s bridge=%s wall=%s reentered=%s pilotWalked=%s " +
+                "%s landing=%s stairsDown=%s stairsUp=%s bridge=%s wall=%s reentered=%s pilotWalked=%s cabin=%s " +
                         "samples=%d peakSpeed=%.3f_m/s speedInside=%.3f_m/s turn=%.2f_deg maxServerFootError=%.6f_m " +
                         "meridianBlocks=%d squallBlocks=%d",
-                status, landed, belowDeck, returned, insideBridge, atWall, reentered, pilotWalked, samples, peakSpeed,
+                status, landed, belowDeck, returned, insideBridge, atWall, reentered, pilotWalked, cabin, samples, peakSpeed,
                 speedWhenBelow, maxTurn, maxOnDeckError, meridian.blueprint().states().size(),
                 squall.blueprint().states().size());
     }
 
     private void checkFoot(ServerPlayerEntity player, DeckMotion.State foot) {
         if (player.getVehicle() != meridian) throw new IllegalStateException("Lost vehicle association");
-        if (!DeckMotion.isClear(meridian::solidForCrew, foot.x(), foot.y(), foot.z())) {
+        if (!DeckMotion.isClear(meridian.deckSpace(), foot.x(), foot.y(), foot.z())) {
             throw new IllegalStateException("Crew penetrated hull: " + foot);
         }
         maxOnDeckError = Math.max(maxOnDeckError, player.getPos().distanceTo(meridian.worldFeet(foot)));

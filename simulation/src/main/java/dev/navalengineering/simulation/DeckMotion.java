@@ -1,5 +1,7 @@
 package dev.navalengineering.simulation;
 
+import java.util.List;
+
 /** Upright player collision in blueprint coordinates. A block at (x,y,z) spans the centred unit cube. */
 public final class DeckMotion {
     private static final double RADIUS = .299;
@@ -12,6 +14,10 @@ public final class DeckMotion {
     @FunctionalInterface
     public interface Space {
         boolean solid(int x, int y, int z);
+
+        default List<HullGeometry.Box> boxes(int x, int y, int z) {
+            return solid(x, y, z) ? HullGeometry.FULL.boxes() : List.of();
+        }
     }
 
     public record State(double x, double y, double z, double vy, boolean grounded) {
@@ -73,7 +79,11 @@ public final class DeckMotion {
         for (int ix = cell(x - RADIUS + EPS); ix <= cell(x + RADIUS - EPS); ix++) {
             for (int iy = cell(y + EPS); iy <= cell(y + HEIGHT - EPS); iy++) {
                 for (int iz = cell(z - RADIUS + EPS); iz <= cell(z + RADIUS - EPS); iz++) {
-                    if (space.solid(ix, iy, iz)) return false;
+                    for (HullGeometry.Box box : space.boxes(ix, iy, iz)) {
+                        if (overlap(x - RADIUS, x + RADIUS, ix + box.x0(), ix + box.x1())
+                                && overlap(y, y + HEIGHT, iy + box.y0(), iy + box.y1())
+                                && overlap(z - RADIUS, z + RADIUS, iz + box.z0(), iz + box.z1())) return false;
+                    }
                 }
             }
         }
@@ -109,12 +119,17 @@ public final class DeckMotion {
         for (int ix = minX; ix <= maxX; ix++) {
             for (int iy = minY; iy <= maxY; iy++) {
                 for (int iz = minZ; iz <= maxZ; iz++) {
-                    if (!space.solid(ix, iy, iz)) continue;
-                    int coordinate = switch (axis) { case 0 -> ix; case 1 -> iy; default -> iz; };
-                    if (delta > 0 && coordinate - .5 >= far - EPS) {
-                        delta = Math.min(delta, Math.max(0, coordinate - .5 - far));
-                    } else if (delta < 0 && coordinate + .5 <= near + EPS) {
-                        delta = Math.max(delta, Math.min(0, coordinate + .5 - near));
+                    for (HullGeometry.Box box : space.boxes(ix, iy, iz)) {
+                        if (axis != 0 && !overlap(x0, x1, ix + box.x0(), ix + box.x1())) continue;
+                        if (axis != 1 && !overlap(y0, y1, iy + box.y0(), iy + box.y1())) continue;
+                        if (axis != 2 && !overlap(z0, z1, iz + box.z0(), iz + box.z1())) continue;
+                        double min = switch (axis) { case 0 -> ix + box.x0(); case 1 -> iy + box.y0(); default -> iz + box.z0(); };
+                        double max = switch (axis) { case 0 -> ix + box.x1(); case 1 -> iy + box.y1(); default -> iz + box.z1(); };
+                        if (delta > 0 && min >= far - EPS) {
+                            delta = Math.min(delta, Math.max(0, min - far));
+                        } else if (delta < 0 && max <= near + EPS) {
+                            delta = Math.max(delta, Math.min(0, max - near));
+                        }
                     }
                 }
             }
@@ -122,8 +137,11 @@ public final class DeckMotion {
         return delta;
     }
 
+    private static boolean overlap(double minA, double maxA, double minB, double maxB) {
+        return maxA > minB + EPS && minA < maxB - EPS;
+    }
+
     private static int cell(double n) { return (int) Math.floor(n + .5); }
     private static double square(double n) { return n * n; }
     private static double horizontalDistance(State a, State b) { return square(a.x - b.x) + square(a.z - b.z); }
 }
-

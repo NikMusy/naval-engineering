@@ -24,6 +24,7 @@ public final class NavalClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        ProfileModels.register();
         EntityRendererRegistry.register(NavalEngineering.SHIP, ShipRenderer::new);
         HudRenderCallback.EVENT.register(BridgeHud::render);
         var ocean = new OceanRenderer();
@@ -78,4 +79,3 @@ public final class NavalClient implements ClientModInitializer {
         ClientPlayNetworking.send(input);
     }
 }
-

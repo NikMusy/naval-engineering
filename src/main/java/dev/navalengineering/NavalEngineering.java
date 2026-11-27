@@ -1,6 +1,7 @@
 package dev.navalengineering;
 
 import dev.navalengineering.construction.ShipBlock;
+import dev.navalengineering.construction.ProfileBlock;
 import dev.navalengineering.construction.ShipCommands;
 import dev.navalengineering.network.BoardRequest;
 import dev.navalengineering.network.CrewInput;
@@ -8,6 +9,7 @@ import dev.navalengineering.ship.DeckBoarding;
 import dev.navalengineering.ship.ShipContacts;
 import dev.navalengineering.ship.ShipEntity;
 import dev.navalengineering.simulation.Hull;
+import dev.navalengineering.simulation.HullGeometry;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
@@ -41,6 +43,12 @@ public final class NavalEngineering implements ModInitializer {
     public static final ShipBlock NAVY_PANEL = block("navy_panel", Hull.Material.TRIM, Blocks.IRON_BLOCK);
     public static final ShipBlock IVORY_PANEL = block("ivory_panel", Hull.Material.TRIM, Blocks.IRON_BLOCK);
     public static final ShipBlock RED_PRIMER = block("red_primer", Hull.Material.TRIM, Blocks.IRON_BLOCK);
+    public static final ProfileBlock BOW_PLATE = profile("bow_plate", Hull.Material.TRIM, HullGeometry.Profile.BOW, Blocks.IRON_BLOCK);
+    public static final ProfileBlock STEM = profile("stem", Hull.Material.TRIM, HullGeometry.Profile.STEM, Blocks.IRON_BLOCK);
+    public static final ProfileBlock CHINE = profile("chine", Hull.Material.PLATING, HullGeometry.Profile.CHINE, Blocks.IRON_BLOCK);
+    public static final ProfileBlock SHOULDER = profile("shoulder", Hull.Material.TRIM, HullGeometry.Profile.SHOULDER, Blocks.IRON_BLOCK);
+    public static final ProfileBlock BERTH = profile("berth", Hull.Material.FIXTURE, HullGeometry.Profile.BERTH, Blocks.SPRUCE_PLANKS);
+    public static final ShipBlock LOCKER = block("locker", Hull.Material.FIXTURE, Blocks.SPRUCE_PLANKS);
     public static final SoundEvent ENGINE_LOOP = sound("engine_loop");
     public static final SoundEvent OCEAN_LOOP = sound("ocean_loop");
 
@@ -50,9 +58,19 @@ public final class NavalEngineering implements ModInitializer {
 
     private static ShipBlock block(String name, Hull.Material material, Block sample) {
         var block = new ShipBlock(material, AbstractBlock.Settings.copy(sample));
+        registerBlock(name, block);
+        return block;
+    }
+
+    private static ProfileBlock profile(String name, Hull.Material material, HullGeometry.Profile profile, Block sample) {
+        var block = new ProfileBlock(material, profile, AbstractBlock.Settings.copy(sample));
+        registerBlock(name, block);
+        return block;
+    }
+
+    private static void registerBlock(String name, Block block) {
         Registry.register(Registries.BLOCK, id(name), block);
         Registry.register(Registries.ITEM, id(name), new BlockItem(block, new Item.Settings()));
-        return block;
     }
 
     private static SoundEvent sound(String name) {
@@ -65,7 +83,7 @@ public final class NavalEngineering implements ModInitializer {
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.BUILDING_BLOCKS)
                 .register(entries -> {
                     for (ShipBlock block : new ShipBlock[]{PLATING, HELM, DIESEL, PROPELLER, TANK, PUMP,
-                            NAVY_PANEL, IVORY_PANEL, RED_PRIMER}) {
+                            NAVY_PANEL, IVORY_PANEL, RED_PRIMER, BOW_PLATE, STEM, CHINE, SHOULDER, BERTH, LOCKER}) {
                         entries.add(block);
                     }
                 });
@@ -83,4 +101,3 @@ public final class NavalEngineering implements ModInitializer {
                 DeckBoarding.accept(context.player(), input.shipId()));
     }
 }
-

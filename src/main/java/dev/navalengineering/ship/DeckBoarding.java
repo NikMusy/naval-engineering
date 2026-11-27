@@ -40,12 +40,17 @@ public final class DeckBoarding {
             var hull = ship.blueprint().hull();
             for (int i = 0; i < hull.blocks().size(); i++) {
                 if (ship.isCellDamaged(i)) continue;
-                Hull.Grid p = hull.blocks().get(i).position();
-                var face = new Box(p.x() - .5, p.y() - .5, p.z() - .5, p.x() + .5, p.y() + .5, p.z() + .5)
-                        .raycast(startLocal, endLocal);
-                if (face.isEmpty() || face.get().squaredDistanceTo(startLocal) >= nearest) continue;
-                nearest = face.get().squaredDistanceTo(startLocal);
-                result = new Hit(ship, face.get());
+                Hull.Cell cell = hull.blocks().get(i);
+                Hull.Grid p = cell.position();
+                var full = new Box(p.x() - .5, p.y() - .5, p.z() - .5, p.x() + .5, p.y() + .5, p.z() + .5);
+                if (full.raycast(startLocal, endLocal).isEmpty() && !full.contains(startLocal)) continue;
+                for (var solid : cell.geometry().boxes()) {
+                    var face = new Box(p.x() + solid.x0(), p.y() + solid.y0(), p.z() + solid.z0(),
+                            p.x() + solid.x1(), p.y() + solid.y1(), p.z() + solid.z1()).raycast(startLocal, endLocal);
+                    if (face.isEmpty() || face.get().squaredDistanceTo(startLocal) >= nearest) continue;
+                    nearest = face.get().squaredDistanceTo(startLocal);
+                    result = new Hit(ship, face.get());
+                }
             }
         }
         return result;
@@ -75,7 +80,7 @@ public final class DeckBoarding {
                 Vec3d localLast = ship.toLocalLastTick(last);
                 Vec3d localNow = ship.toLocal(now);
                 if (localLast.y - localNow.y < .002) continue;
-                DeckMotion.State footing = DeckMotion.landing(ship::solidForCrew,
+                DeckMotion.State footing = DeckMotion.landing(ship.deckSpace(),
                         localNow.x, localLast.y + .035, localNow.y - .03, localNow.z);
                 if (footing != null && ship.worldFeet(footing).squaredDistanceTo(now) < 3
                         && ship.board(player, footing)) break;
@@ -98,4 +103,3 @@ public final class DeckBoarding {
         private final Map<UUID, Long> waitUntil = new HashMap<>();
     }
 }
-

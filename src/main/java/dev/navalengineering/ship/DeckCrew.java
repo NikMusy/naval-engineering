@@ -2,6 +2,8 @@ package dev.navalengineering.ship;
 
 import dev.navalengineering.network.CrewInput;
 import dev.navalengineering.simulation.DeckMotion;
+import dev.navalengineering.simulation.Hull;
+import dev.navalengineering.simulation.HullGeometry;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.nbt.NbtCompound;
@@ -10,6 +12,7 @@ import net.minecraft.util.math.Vec3d;
 
 import java.util.ArrayDeque;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 final class DeckCrew {
@@ -55,6 +58,16 @@ final class DeckCrew {
         Replica replica = replicas.get(id);
         if (replica == null || replica.previous == null) return 0;
         return Math.hypot(replica.displayed.x() - replica.previous.x(), replica.displayed.z() - replica.previous.z());
+    }
+
+    Vec3d localEye(int id, float delta, float eyeHeight) {
+        Replica replica = replicas.get(id);
+        if (replica == null) return null;
+        DeckMotion.State now = replica.displayed;
+        DeckMotion.State old = replica.previous == null ? now : replica.previous;
+        return new Vec3d(MathHelper.lerp(delta, old.x(), now.x()),
+                MathHelper.lerp(delta, old.y(), now.y()) + eyeHeight,
+                MathHelper.lerp(delta, old.z(), now.z()));
     }
 
     void add(PlayerEntity player, DeckMotion.State start) {
@@ -123,7 +136,7 @@ final class DeckCrew {
             DeckMotion.State from = member.position;
             DeckMotion.Input action = member.active == null || isPilot(rider.getId())
                     ? DeckMotion.Input.IDLE : member.active.walking();
-            DeckMotion.State to = DeckMotion.tick(ship::solidForCrew, from, action);
+            DeckMotion.State to = DeckMotion.tick(ship.deckSpace(), from, action);
             Vec3d worldFeet = ship.worldFeet(to);
             if (ship.leftHull(to)) {
                 member.position = to;
@@ -137,8 +150,14 @@ final class DeckCrew {
         }
     }
 
-    boolean wouldTrap(int x, int y, int z) {
-        DeckMotion.Space repaired = (i, j, k) -> (i == x && j == y && k == z) || ship.solidForCrew(i, j, k);
+    boolean wouldTrap(Hull.Cell cell) {
+        DeckMotion.Space repaired = new DeckMotion.Space() {
+            @Override public boolean solid(int x, int y, int z) { return !boxes(x, y, z).isEmpty(); }
+            @Override public List<HullGeometry.Box> boxes(int x, int y, int z) {
+                var p = cell.position();
+                return x == p.x() && y == p.y() && z == p.z() ? cell.geometry().boxes() : ship.deckSpace().boxes(x, y, z);
+            }
+        };
         return members.values().stream().anyMatch(member -> {
             DeckMotion.State p = member.position;
             return !DeckMotion.isClear(repaired, p.x(), p.y(), p.z());
@@ -210,7 +229,7 @@ final class DeckCrew {
                     MathHelper.lerp(ratio, replica.displayed.x(), target.x()),
                     MathHelper.lerp(ratio, replica.displayed.y(), target.y()),
                     MathHelper.lerp(ratio, replica.displayed.z(), target.z()), target.vy(), target.grounded());
-            replica.displayed = DeckMotion.isClear(ship::solidForCrew, blended.x(), blended.y(), blended.z())
+            replica.displayed = DeckMotion.isClear(ship.deckSpace(), blended.x(), blended.y(), blended.z())
                     ? blended : target;
         }
         predictedInput = null;
@@ -221,7 +240,7 @@ final class DeckCrew {
         int ticks = 0;
         for (CrewInput input : pending) {
             if (++ticks > MAX_REPLAY_TICKS || (input.flags() & CrewInput.HELM) != 0) break;
-            DeckMotion.State next = DeckMotion.tick(ship::solidForCrew, position, input.walking());
+            DeckMotion.State next = DeckMotion.tick(ship.deckSpace(), position, input.walking());
             if (Math.abs(confirmed.y() - next.y()) > PREDICTED_VERTICAL_RANGE
                     || Math.hypot(confirmed.x() - next.x(), confirmed.z() - next.z()) > PREDICTED_HORIZONTAL_RANGE) break;
             position = next;
@@ -251,4 +270,3 @@ final class DeckCrew {
         }
     }
 }
-

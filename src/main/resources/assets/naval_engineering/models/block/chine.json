@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "side": "naval_engineering:block/red_primer",
+    "bottom": "naval_engineering:block/red_primer",
+    "top": "naval_engineering:block/red_primer_top"
+  }
+}

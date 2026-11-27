@@ -6,6 +6,7 @@ import dev.navalengineering.network.CrewInput;
 import dev.navalengineering.ocean.WorldOcean;
 import dev.navalengineering.simulation.DeckMotion;
 import dev.navalengineering.simulation.Hull;
+import dev.navalengineering.simulation.HullGeometry;
 import dev.navalengineering.simulation.Vessel;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
@@ -33,6 +34,7 @@ import org.joml.Vector3f;
 import org.slf4j.LoggerFactory;
 
 import java.util.BitSet;
+import java.util.List;
 
 public final class ShipEntity extends Entity {
     private static final TrackedData<NbtCompound> BLUEPRINT = DataTracker.registerData(ShipEntity.class,
@@ -51,6 +53,13 @@ public final class ShipEntity extends Entity {
     private final Quaterniond previousServerRotation = new Quaterniond();
     private final Vector3d origin = new Vector3d();
     private final DeckCrew crew = new DeckCrew(this);
+    private final DeckMotion.Space deckSpace = new DeckMotion.Space() {
+        @Override public boolean solid(int x, int y, int z) { return solidForCrew(x, y, z); }
+        @Override public List<HullGeometry.Box> boxes(int x, int y, int z) {
+            int index = crewCell(x, y, z);
+            return index < 0 ? List.of() : blueprint.hull().blocks().get(index).geometry().boxes();
+        }
+    };
     private Blueprint blueprint;
     private Vessel body;
     private TerrainCollision terrain;
@@ -245,6 +254,13 @@ public final class ShipEntity extends Entity {
         return previous.slerp(rendered, tickDelta, new Quaternionf());
     }
 
+    public Vec3d crewEyePosition(int id, float tickDelta, float height) {
+        Vec3d eye = crew.localEye(id, tickDelta, height);
+        if (eye == null) return null;
+        var offset = new Quaterniond(renderRotation(tickDelta)).transform(new Vector3d(eye.x, eye.y, eye.z));
+        return getLerpedPos(tickDelta).add(offset.x, offset.y, offset.z);
+    }
+
     @Override
     public Box getVisibilityBoundingBox() {
         return getBoundingBox().expand(blueprint == null ? 1 : blueprint.hull().radius());
@@ -277,8 +293,9 @@ public final class ShipEntity extends Entity {
 
     public boolean board(PlayerEntity player, DeckMotion.State position) {
         if (getWorld().isClient || body == null || player.hasVehicle() || player.isSpectator()
-                || !canBoard() || !DeckMotion.isClear(this::solidForCrew, position.x(), position.y(), position.z())
-                || !DeckMotion.hasFloor(this::solidForCrew, position)
+                || !canBoard() || player.getWorld() != getWorld()
+                || !DeckMotion.isClear(deckSpace, position.x(), position.y(), position.z())
+                || !DeckMotion.hasFloor(deckSpace, position)
                 || !isWorldClear(player, worldFeet(position))) return false;
         requestedFooting = position;
         try {
@@ -297,8 +314,9 @@ public final class ShipEntity extends Entity {
             Hull.Grid p = blueprint.hull().blocks().get(i).position();
             double y = p.y() + .5;
             double cost = focus.squaredDistanceTo(p.x(), y, p.z());
-            if (cost >= best || cost > 20 || !DeckMotion.isClear(this::solidForCrew, p.x(), y, p.z())) continue;
+            if (cost >= best || cost > 20 || !DeckMotion.isClear(deckSpace, p.x(), y, p.z())) continue;
             var stand = DeckMotion.State.standing(p.x(), y, p.z());
+            if (!DeckMotion.hasFloor(deckSpace, stand)) continue;
             Vec3d world = worldFeet(stand);
             if (world.squaredDistanceTo(player.getPos()) > maximum * maximum || !isWorldClear(player, world)) continue;
             result = stand;
@@ -395,10 +413,16 @@ public final class ShipEntity extends Entity {
     }
 
     public boolean solidForCrew(int x, int y, int z) {
+        return crewCell(x, y, z) >= 0;
+    }
+
+    public DeckMotion.Space deckSpace() { return deckSpace; }
+
+    private int crewCell(int x, int y, int z) {
         if (blueprint == null || Math.abs(x) >= Hull.MAX_SPAN || Math.abs(y) >= Hull.MAX_SPAN
-                || Math.abs(z) >= Hull.MAX_SPAN) return false;
+                || Math.abs(z) >= Hull.MAX_SPAN) return -1;
         int index = blueprint.hull().indexOf(new Hull.Grid(x, y, z));
-        return index >= 0 && !isCellDamaged(index);
+        return index >= 0 && !isCellDamaged(index) ? index : -1;
     }
 
     boolean leftHull(DeckMotion.State p) {
@@ -413,8 +437,7 @@ public final class ShipEntity extends Entity {
 
     public boolean repairCell(int index) {
         if (index < 0 || !body.breached(index)) return false;
-        Hull.Grid p = blueprint.hull().blocks().get(index).position();
-        return !crew.wouldTrap(p.x(), p.y(), p.z()) && body.repair(index);
+        return !crew.wouldTrap(blueprint.hull().blocks().get(index)) && body.repair(index);
     }
 
     @Override
@@ -475,4 +498,3 @@ public final class ShipEntity extends Entity {
         return Double.isFinite(value) ? value : fallback;
     }
 }
-

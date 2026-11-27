@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "naval_engineering:block/stem"
+    },
+    "facing=east": {
+      "model": "naval_engineering:block/stem"
+    },
+    "facing=south": {
+      "model": "naval_engineering:block/stem"
+    },
+    "facing=west": {
+      "model": "naval_engineering:block/stem"
+    }
+  }
+}
