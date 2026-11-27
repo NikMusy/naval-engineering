@@ -1,0 +1,4 @@
+{
+  "engine_loop": { "sounds": ["naval_engineering:engine_loop"] },
+  "ocean_loop": { "sounds": ["naval_engineering:ocean_loop"] }
+}

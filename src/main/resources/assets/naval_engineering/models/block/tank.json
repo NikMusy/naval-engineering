@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "side": "naval_engineering:block/tank",
+    "bottom": "naval_engineering:block/tank",
+    "top": "naval_engineering:block/tank_top"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "side": "naval_engineering:block/propeller",
+    "bottom": "naval_engineering:block/propeller",
+    "top": "naval_engineering:block/propeller_top"
+  }
+}
