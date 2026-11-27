@@ -1,0 +1,114 @@
+plugins {
+    id 'fabric-loom' version '1.8.13'
+}
+group = 'dev.navalengineering'
+version = mod_version
+
+loom { splitEnvironmentSourceSets() }
+
+sourceSets {
+    gametest {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+    smoke {
+        compileClasspath += sourceSets.main.output + sourceSets.main.compileClasspath
+        runtimeClasspath += sourceSets.main.output + sourceSets.main.runtimeClasspath
+    }
+    smokeClient {
+        compileClasspath += sourceSets.smoke.output + sourceSets.client.output + sourceSets.client.compileClasspath
+        runtimeClasspath += sourceSets.smoke.output + sourceSets.client.output + sourceSets.client.runtimeClasspath
+    }
+}
+loom {
+    mods {
+        naval_engineering {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+        naval_engineering_gametest {
+            sourceSet sourceSets.gametest
+        }
+        naval_engineering_smoke {
+            sourceSet sourceSets.smoke
+            sourceSet sourceSets.smokeClient
+        }
+    }
+    runs {
+        gametest {
+            server()
+            name = 'Naval Engineering GameTest'
+            source sourceSets.gametest
+            runDir 'build/gametest'
+            vmArg '-Dfabric-api.gametest'
+            vmArg '-Dfabric-api.gametest.report-file=reports/naval-gametest.xml'
+        }
+        deckServer {
+            server()
+            name = 'Naval Deck Server'
+            source sourceSets.smoke
+            runDir 'build/deck-server'
+            vmArg '-Xmx1400m'
+            programArg '--nogui'
+        }
+        deckPilot {
+            client()
+            name = 'Naval Deck Pilot'
+            source sourceSets.smokeClient
+            runDir 'build/deck-pilot'
+            vmArg '-Xmx1250m'
+            programArgs '--username', 'DeckPilot', '--quickPlayMultiplayer', '127.0.0.1:25579'
+        }
+        deckWalker {
+            client()
+            name = 'Naval Deck Walker'
+            source sourceSets.smokeClient
+            runDir 'build/deck-walker'
+            vmArg '-Xmx1250m'
+            programArgs '--username', 'DeckWalker', '--quickPlayMultiplayer', '127.0.0.1:25579'
+        }
+    }
+}
+repositories {
+    mavenCentral()
+}
+dependencies {
+    minecraft "com.mojang:minecraft:$minecraft_version"
+    mappings "net.fabricmc:yarn:$yarn_mappings:v2"
+    modImplementation "net.fabricmc:fabric-loader:$loader_version"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:$fabric_version"
+    implementation project(':simulation')
+}
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+}
+processResources {
+    inputs.property 'version', version
+    filesMatching('fabric.mod.json') { expand(version: version) }
+}
+jar {
+    dependsOn ':simulation:jar'
+    from({ zipTree(project(':simulation').tasks.named('jar').get().archiveFile.get().asFile) }) {
+        include 'dev/navalengineering/simulation/**'
+    }
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
+def releaseJar = tasks.named('remapJar').flatMap { it.archiveFile }
+def verifyModJar = tasks.register('verifyModJar') {
+    inputs.file(releaseJar)
+    doLast {
+        def entries = zipTree(releaseJar.get().asFile)
+        ['simulation/Vessel.class', 'ship/ShipEntity.class', 'client/NavalClient.class'].each { required ->
+            if (entries.matching { include "dev/navalengineering/$required" }.isEmpty()) {
+                throw new GradleException("Release mod is missing $required")
+            }
+        }
+    }
+}
+tasks.named('check') { dependsOn verifyModJar }

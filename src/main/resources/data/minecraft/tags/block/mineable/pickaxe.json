@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "naval_engineering:plating",
+    "naval_engineering:diesel",
+    "naval_engineering:propeller",
+    "naval_engineering:tank",
+    "naval_engineering:pump",
+    "naval_engineering:navy_panel",
+    "naval_engineering:ivory_panel",
+    "naval_engineering:red_primer"
+  ]
+}

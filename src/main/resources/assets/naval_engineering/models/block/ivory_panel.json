@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "side": "naval_engineering:block/ivory_panel",
+    "bottom": "naval_engineering:block/ivory_panel",
+    "top": "naval_engineering:block/ivory_panel_top"
+  }
+}

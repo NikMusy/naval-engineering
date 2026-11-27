@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "naval_engineering_smoke",
+  "version": "1",
+  "name": "Naval Engineering Two-Client Smoke Test",
+  "environment": "*",
+  "entrypoints": {
+    "server": ["dev.navalengineering.smoke.DeckSmokeServer"],
+    "client": ["dev.navalengineering.smoke.DeckSmokeClient"]
+  },
+  "depends": { "naval_engineering": "*", "fabric-api": "*" }
+}

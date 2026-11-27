@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "naval_engineering_gametest",
+  "version": "1",
+  "name": "Naval Engineering Game Tests",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-gametest": ["dev.navalengineering.gametest.VesselGameTests"]
+  },
+  "depends": {
+    "naval_engineering": "*",
+    "fabric-gametest-api-v1": "*"
+  }
+}

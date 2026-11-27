@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "side": "naval_engineering:block/plating",
+    "bottom": "naval_engineering:block/plating",
+    "top": "naval_engineering:block/plating_top"
+  }
+}
